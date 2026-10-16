@@ -1,0 +1,204 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Araba Yarışı</title>
+  <style>
+    body {
+      margin: 0;
+      background: #18212f;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 { margin: 16px 0 8px; }
+
+    canvas {
+      display: block;
+      width: min(90vw, 360px);
+      height: auto;
+      margin: 12px auto;
+      border: 3px solid white;
+      border-radius: 8px;
+      background: #333;
+    }
+
+    button {
+      padding: 12px 24px;
+      margin: 5px;
+      border: 0;
+      border-radius: 8px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    #status { min-height: 24px; }
+  </style>
+</head>
+<body>
+  <h1>🏎️ Mini Araba Yarışı</h1>
+  <p>Skor: <span id="score">0</span></p>
+
+  <canvas id="game" width="360" height="520"></canvas>
+
+  <p id="status">← → tuşlarıyla hareket et!</p>
+  <button id="left">⬅️ Sol</button>
+  <button id="right">Sağ ➡️</button>
+  <button id="restart">Yeniden başlat</button>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreText = document.getElementById("score");
+    const statusText = document.getElementById("status");
+
+    const player = { x: 158, y: 410, w: 44, h: 76 };
+    let obstacles = [];
+    let score = 0;
+    let frame = 0;
+    let running = true;
+    let keys = {};
+    let roadOffset = 0;
+
+    function drawCar(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 44, 76);
+
+      ctx.fillStyle = "#bfeaff";
+      ctx.fillRect(x + 7, y + 10, 30, 16);
+      ctx.fillRect(x + 7, y + 48, 30, 13);
+
+      ctx.fillStyle = "#171717";
+      ctx.fillRect(x - 4, y + 12, 5, 17);
+      ctx.fillRect(x + 43, y + 12, 5, 17);
+      ctx.fillRect(x - 4, y + 49, 5, 17);
+      ctx.fillRect(x + 43, y + 49, 5, 17);
+    }
+
+    function drawRoad() {
+      ctx.fillStyle = "#277844";
+      ctx.fillRect(0, 0, 360, 520);
+
+      ctx.fillStyle = "#444";
+      ctx.fillRect(40, 0, 280, 520);
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(48, 0, 4, 520);
+      ctx.fillRect(308, 0, 4, 520);
+
+      for (let y = -40; y < 520; y += 100) {
+        ctx.fillRect(177, y + roadOffset, 6, 48);
+        ctx.fillRect(108, y + roadOffset, 4, 35);
+        ctx.fillRect(248, y + roadOffset, 4, 35);
+      }
+    }
+
+    function hit(a, b) {
+      return a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y;
+    }
+
+    function resetGame() {
+      player.x = 158;
+      obstacles = [];
+      score = 0;
+      frame = 0;
+      roadOffset = 0;
+      running = true;
+      scoreText.textContent = score;
+      statusText.textContent = "← → tuşlarıyla hareket et!";
+      requestAnimationFrame(loop);
+    }
+
+    function loop() {
+      if (!running) return;
+
+      frame++;
+      roadOffset = (roadOffset + 4) % 100;
+
+      if (keys.ArrowLeft || keys.a) player.x -= 5;
+      if (keys.ArrowRight || keys.d) player.x += 5;
+
+      player.x = Math.max(54, Math.min(262, player.x));
+
+      if (frame % 65 === 0) {
+        const lanes = [78, 158, 238];
+        const lane = lanes[Math.floor(Math.random() * lanes.length)];
+        obstacles.push({ x: lane, y: -80, w: 44, h: 76 });
+      }
+
+      drawRoad();
+
+      for (const obstacle of obstacles) {
+        obstacle.y += 4;
+        drawCar(obstacle.x, obstacle.y, "#f04b4b");
+
+        if (hit(player, obstacle)) {
+          running = false;
+          statusText.textContent = "Çarpıştın! Yeniden başlatabilirsin.";
+        }
+      }
+
+      obstacles = obstacles.filter(o => o.y < 540);
+
+      drawCar(player.x, player.y, "#27a8ff");
+
+      if (!running) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(35, 210, 290, 85);
+        ctx.fillStyle = "white";
+        ctx.font = "bold 25px Arial";
+        ctx.fillText("OYUN BİTTİ!", 95, 247);
+        ctx.font = "18px Arial";
+        ctx.fillText("Skor: " + score, 145, 275);
+        return;
+      }
+
+      if (frame % 10 === 0) {
+        score++;
+        scoreText.textContent = score;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("keydown", e => {
+      keys[e.key] = true;
+      if (["ArrowLeft", "ArrowRight"].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener("keyup", e => {
+      keys[e.key] = false;
+    });
+
+    document.getElementById("left").addEventListener("pointerdown", () => {
+      keys.ArrowLeft = true;
+    });
+    document.getElementById("right").addEventListener("pointerdown", () => {
+      keys.ArrowRight = true;
+    });
+
+    for (const id of ["left", "right"]) {
+      document.getElementById(id).addEventListener("pointerup", () => {
+        keys.ArrowLeft = false;
+        keys.ArrowRight = false;
+      });
+      document.getElementById(id).addEventListener("pointerleave", () => {
+        keys.ArrowLeft = false;
+        keys.ArrowRight = false;
+      });
+    }
+
+    document.getElementById("restart").addEventListener("click", resetGame);
+
+    loop();
+  </script>
+</body>
+</html>
