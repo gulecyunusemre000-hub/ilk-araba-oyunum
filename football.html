@@ -37,9 +37,38 @@ function drawPlayer(x,y,color,num){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x
 function drawPitch(){ctx.clearRect(0,0,360,540);ctx.fillStyle="#14713f";ctx.fillRect(0,0,360,540);for(let i=0;i<9;i++){ctx.fillStyle=i%2?"#197a43":"#167340";ctx.fillRect(0,i*60,360,60)}ctx.strokeStyle="#d8f5df";ctx.lineWidth=2;ctx.strokeRect(8,8,344,524);ctx.beginPath();ctx.moveTo(8,270);ctx.lineTo(352,270);ctx.stroke();ctx.beginPath();ctx.arc(180,270,48,0,Math.PI*2);ctx.stroke();ctx.strokeRect(85,8,190,75);ctx.strokeRect(125,8,110,32);ctx.strokeRect(85,457,190,75);ctx.strokeRect(125,500,110,32);ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(180,45,2,0,Math.PI*2);ctx.fill()}
 function draw(){drawPitch();drawPlayer(mate.x,mate.y,"#52d9ff","8");drawPlayer(opp2.x,opp2.y,"#f15c69","6");drawPlayer(opp.x,opp.y,"#f15c69","4");drawPlayer(keeper.x,keeper.y,"#ffb74d","1");drawPlayer(p.x,p.y,"#b7ff4a","10");if(ball.owner==="player"){ctx.strokeStyle="#b7ff4a";ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(ball.x,ball.y);ctx.lineTo(aim.x,aim.y);ctx.stroke();ctx.setLineDash([]);ctx.strokeStyle="#fff";ctx.beginPath();ctx.arc(aim.x,aim.y,8,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(aim.x-12,aim.y);ctx.lineTo(aim.x+12,aim.y);ctx.moveTo(aim.x,aim.y-12);ctx.lineTo(aim.x,aim.y+12);ctx.stroke()}ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(ball.x,ball.y,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#1b2937";ctx.stroke();if(shot){ctx.fillStyle="#fff";ctx.font="bold 15px Arial";ctx.textAlign="center";ctx.fillText("⚽",shot.x,shot.y)}}
 function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function moveToward(entity,tx,ty,speed){const dx=tx-entity.x,dy=ty-entity.y,d=Math.hypot(dx,dy)||1;entity.x=Math.max(14,Math.min(346,entity.x+dx/d*Math.min(speed,d)));entity.y=Math.max(14,Math.min(526,entity.y+dy/d*Math.min(speed,d)))}
 function update(dt){if(!match||match.done)return;let s=+career.settings.speed*dt/16;let dx=0,dy=0;if(keys.left||keys.ArrowLeft||keys.a)dx-=1;if(keys.right||keys.ArrowRight||keys.d)dx+=1;if(keys.up||keys.ArrowUp||keys.w)dy-=1;if(keys.down||keys.ArrowDown||keys.s)dy+=1;let len=Math.hypot(dx,dy)||1;p.x=Math.max(18,Math.min(342,p.x+dx/len*s));p.y=Math.max(18,Math.min(522,p.y+dy/len*s));
-if(ball.owner==="player"){ball.x=p.x+4;ball.y=p.y-13}else if(ball.owner==="mate"){mate.x+=Math.sign(p.x-mate.x)*Math.min(1,Math.abs(p.x-mate.x)*.02);mate.y+=Math.sign(p.y-mate.y)*Math.min(1,Math.abs(p.y-mate.y)*.02);ball.x=mate.x+5;ball.y=mate.y-10;if(distance(p,mate)<40&&p.y<350){ball.owner="player";$("matchNotice").textContent="PAS GELDİ! Kaleye yaklaş ve şut çek."}}else{ball.x+=ball.vx;ball.y+=ball.vy;ball.vx*=.985;ball.vy*=.985;if(distance(ball,p)<16){ball.owner="player";$("matchNotice").textContent="Top sende! Şut için düğmeye bas."}if(distance(ball,opp)<16){ball.owner="opponent";ball.vx=0;ball.vy=0}if(ball.owner==="opponent"){opp.x+=Math.sign(180-opp.x)*.5;opp.y+=.9;if(distance(opp,p)<20){ball.owner="player";$("matchNotice").textContent="Topu kaptın! Hücuma çık."}else if(opp.y>300){ball.owner="mate";ball.x=mate.x;ball.y=mate.y}}}
-if(ball.owner==="player"&&p.y<300&&Math.random()<.008){ball.owner="mate";ball.x=mate.x;ball.y=mate.y;$("matchNotice").textContent="Takım arkadaşına pas verdin. Tekrar boş alana koş!"}
+const aiSpeed=career.settings.difficulty==="easy"?.75:career.settings.difficulty==="hard"?1.65:1.15;
+// Teammates move into passing lanes instead of following the player in a straight line.
+if(ball.owner==="player"){ball.x=p.x+4;ball.y=p.y-13;moveToward(mate,p.x+(p.x<180?55:-55),Math.max(90,p.y-95),aiSpeed*.55)}
+else if(ball.owner==="mate"){
+  // Teammate carries the ball upfield, then deliberately passes to the user near the attacking area.
+  moveToward(mate,p.y<310&&distance(p,mate)<190?p.x:p.x+(p.x<180?45:-45),Math.max(95,Math.min(360,mate.y-1.5)),aiSpeed*.75);
+  ball.x=mate.x+4;ball.y=mate.y-11;
+  if(p.y<350&&distance(p,mate)<155&&Math.random()<.055){ball.owner="player";ball.x=p.x+4;ball.y=p.y-13;$("matchNotice").textContent="GÜZEL PAS! Top sana geldi — kaleye nişan alıp şut çek!";}
+  else if(mate.y<125&&Math.random()<.025){ball.owner="player";ball.x=p.x+4;ball.y=p.y-13;$("matchNotice").textContent="Takım arkadaşın ceza alanında sana pas çıkardı! ŞUT ÇEK!";}
+}else if(ball.owner==="opponent"){
+  // Opponents actively attack, while the nearest defender presses the ball.
+  moveToward(opp,ball.x,ball.y,aiSpeed*.95);moveToward(opp2,ball.x+(p.x<180?28:-28),ball.y+38,aiSpeed*.65);
+  if(distance(opp,p)<20||distance(opp2,p)<18){ball.owner="player";ball.x=p.x;ball.y=p.y-12;$("matchNotice").textContent="Rakibin baskısında topu kaptın! Hücum et."}
+  else if(opp.y>350){ball.owner="mate";mate.x=Math.max(35,Math.min(325,opp.x+(Math.random()-.5)*100));mate.y=Math.min(370,opp.y+35);ball.x=mate.x;ball.y=mate.y;$("matchNotice").textContent="Takımın topu geri kazandı! Boş alana koş."}
+  else {ball.x=opp.x+4;ball.y=opp.y-10;if(Math.random()<.008){ball.owner="mate";mate.x=Math.max(30,Math.min(330,opp.x+(Math.random()-.5)*120));mate.y=Math.min(365,opp.y+55);ball.x=mate.x;ball.y=mate.y}}
+}else if(ball.owner==="loose"){
+  moveToward(opp,ball.x,ball.y,aiSpeed);moveToward(opp2,ball.x,ball.y,aiSpeed*.7);
+  if(distance(p,ball)<18){ball.owner="player";$("matchNotice").textContent="Topu aldın! Kaleye doğru ilerle."}
+  else if(distance(opp,ball)<15){ball.owner="opponent";$("matchNotice").textContent="Rakip topa önce ulaştı! Baskı yap ve geri kazan."}
+  else if(distance(mate,ball)<15){ball.owner="mate"}
+}else if(ball.owner==="shot"){
+  // Shot animation owns the ball until the shot resolves.
+}else {
+  // Loose ball movement after a deflection.
+  ball.x+=ball.vx||0;ball.y+=ball.vy||0;ball.vx=(ball.vx||0)*.96;ball.vy=(ball.vy||0)*.96;
+  if(distance(ball,p)<17){ball.owner="player";$("matchNotice").textContent="Top sende! Şut çekebilirsin."}
+  else if(distance(ball,opp)<17){ball.owner="opponent"}
+  else if(distance(ball,mate)<17){ball.owner="mate"}
+}
+if(ball.owner==="player"&&p.y<280&&distance(p,opp)<45&&Math.random()<.015){$("matchNotice").textContent="Savunmacı yaklaşıyor! Hemen şut çek veya boş alana hareket et."}
 if(match.frames%60===0){match.seconds=Math.max(0,match.seconds-1);$("clock").textContent=Math.floor(match.seconds/60)+":"+String(match.seconds%60).padStart(2,"0")}match.frames++;if(match.seconds<=0)finishMatch();draw()}
 function loop(t){if(!match||match.done)return;let dt=Math.min(34,t-(lastTime||t));lastTime=t;update(dt);raf=requestAnimationFrame(loop)}
 function stopMatch(){if(raf)cancelAnimationFrame(raf);raf=0;match=null}
